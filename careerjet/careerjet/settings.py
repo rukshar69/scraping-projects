@@ -49,17 +49,18 @@ HTTPCACHE_IGNORE_HTTP_CODES = [404, 403, 500, 503]
 # Item Pipelines
 ITEM_PIPELINES = {
     'careerjet.pipelines.CleaningPipeline': 300,
+    'careerjet.pipelines.SQLitePipeline': 400,
 }
 
 # Feed export
-FEEDS = {
-    'output/jobs.csv': {
-        'format': 'csv',
-        'encoding': 'utf8',
-        'store_empty': False,
-        'overwrite': True,
-    },
-}
+# FEEDS = {
+#     'output/jobs.csv': {
+#         'format': 'csv',
+#         'encoding': 'utf8',
+#         'store_empty': False,
+#         'overwrite': True,
+#     },
+# }
 
 # User agents - Updated with more recent ones
 USER_AGENT_LIST = [

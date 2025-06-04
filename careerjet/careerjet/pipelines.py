@@ -1,6 +1,7 @@
 import re
 from scrapy.exceptions import DropItem
 from datetime import datetime
+import sqlite3
 
 class CleaningPipeline:
     """
@@ -10,7 +11,7 @@ class CleaningPipeline:
 
     def process_item(self, item, spider):
         #  Add timestamp
-        item['scraped_at'] = datetime.now().strftime('%Y-%m-%d %H:%M')
+        item['scraped_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         # Title must exist
         if not item.get('title'):
             spider.logger.warning('Missing title for item: %r', item)
@@ -51,3 +52,43 @@ class CleaningPipeline:
         
         return item
     
+class SQLitePipeline:
+    def open_spider(self, spider):
+        self.connection = sqlite3.connect("careerjet_jobs.db")
+        self.cursor = self.connection.cursor()
+        self.cursor.execute('''
+                CREATE TABLE IF NOT EXISTS jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT,
+                company TEXT,
+                job_link TEXT UNIQUE,
+                location TEXT,
+                salary TEXT,
+                page INTEGER,
+                scraped_at DATETIME,
+                crawl_status TEXT DEFAULT 'NEW'
+            )
+        ''')
+        self.connection.commit()
+
+    def close_spider(self, spider):
+        self.connection.commit()
+        self.connection.close()
+
+    def process_item(self, item, spider):
+        self.cursor.execute('''
+            INSERT OR IGNORE INTO jobs (
+                title, company, job_link, location, salary, page, scraped_at, crawl_status
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            item.get('title'),
+            item.get('company'),
+            item.get('job_link'),
+            item.get('location'),
+            item.get('salary'),
+            item.get('page'),
+            item.get('scraped_at'),
+            'NEW'
+        ))
+        return item

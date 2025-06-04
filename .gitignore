@@ -4,3 +4,4 @@ __pycache__/
 .env
 venv/
 .scrapy/
+careerjet_jobs.db
