@@ -1,30 +1,46 @@
 
 # Careerjet Job Scraper
 
-A scalable and configurable Scrapy-based crawler for extracting job listings from [Careerjet Bangladesh](https://www.careerjet.com.bd). This project collects job data including title, company, location, salary, job link, and the page number from which it was scraped. The project gathers job details and stores them in a local SQLite database.
+A scalable and configurable Scrapy-based project to extract job listings and full job descriptions from [Careerjet Bangladesh](https://www.careerjet.com.bd). The project stores structured data into a local SQLite database for further analysis and research.
 
 ## 📦 Project Structure
 
 ```bash
 careerjet/
 ├── spiders/
-│   └── careerjet_crawler.py  # Main spider to crawl job listings
-├── items.py                  # Defines scraped data schema
-├── pipelines.py              # Cleans and normalizes scraped data
-├── middlewares.py           # Custom user-agent rotation middleware
-├── settings.py              # Project settings and configurations
-├── requirements.txt         # Dependencies
+│   ├── careerjet_crawler.py           # Spider to scrape job listing summaries
+│   └── careerjet_description_crawler.py  # Spider to fetch full job descriptions
+├── items.py                            # Scraped data schema
+├── pipelines.py                        # Cleans and stores items to SQLite
+├── middlewares.py                      # Custom user-agent rotation
+├── settings.py                         # Project settings
+├── requirements.txt                    # Python dependencies
 ```
 
 ## 🚀 Features
 
-- Scrapes up to 100 pages of job listings.
-- Extracts job title, company, location, salary, and job links.
-- Cleans and normalizes salary, company, and location fields.
-- Adds scrape timestamp to each item.
-- Robust retry and delay settings for respectful crawling.
-- Rotates user-agents per request to avoid blocks.
-- Persists job data in a local SQLite database `(careerjet_jobs.db)`.
+* **Multi-stage scraping**:
+
+  * `careerjet_crawler`: Extracts job title, company, location, salary, and job link from 100 pages.
+  * `careerjet_description`: Loads job links from DB, fetches full descriptions, and updates statuses.
+* **SQLite integration**:
+
+  * Persists job listings and descriptions.
+  * Avoids duplicates with unique constraints.
+* **Batch-based crawling**:
+
+  * Processes jobs in batches with `crawl_status` control.
+* **Test mode support**:
+
+  * Configurable limits for development or test runs.
+* **Data normalization**:
+
+  * Salary parsing, title and location cleanup, link normalization.
+* **Resilient crawling**:
+
+  * Retry, throttling, and user-agent rotation enabled.
+
+---
 
 ## 🛠️ Installation
 
@@ -41,70 +57,123 @@ careerjet/
    pip install -r requirements.txt
    ```
 
-## ⚙️ Usage
+## ⚙ Usage
 
-Run the spider with:
+### 1. Scrape Job Listings
 
 ```bash
 scrapy crawl careerjet_crawler
 ```
 
-This will store the extracted job listings in a local SQLite database file: `careerjet_jobs.db`.
+Saves data into `careerjet_jobs.db` under `jobs` table.
 
-## 💾 Database Schema
-The SQLite table jobs includes:
+### 2. Scrape Full Job Descriptions
 
-| Field         | Type     | Description                |
-| ------------- | -------- | -------------------------- |
-| id            | INTEGER  | Auto-increment primary key |
-| title         | TEXT     | Job title                  |
-| company       | TEXT     | Company name               |
-| job\_link     | TEXT     | Absolute job URL (unique)  |
-| location      | TEXT     | Job location               |
-| salary        | TEXT     | Normalized salary text     |
-| page          | INTEGER  | Pagination page number     |
-| scraped\_at   | DATETIME | Timestamp of scraping      |
-| crawl\_status | TEXT     | Default status = 'NEW'     |
+```bash
+scrapy crawl careerjet_description
+```
 
+Fetches job descriptions for records where `crawl_status = 'NEW'` in `jobs` table and stores them in `job_description` table.
 
-## 🧼 Data Pipeline
+---
 
-The `CleaningPipeline` handles:
+## 🗃 Database Schema
 
-- Title validation
-- Company and location formatting
-- Salary parsing and normalization
-- Absolute URL formatting for job links
-- Timestamp injection (`scraped_at`)
+### `jobs` Table
 
-## 🕵️ Spider Details
+| Field         | Type     | Description                        |
+| ------------- | -------- | ---------------------------------- |
+| id            | INTEGER  | Auto-increment primary key         |
+| title         | TEXT     | Job title                          |
+| company       | TEXT     | Company name                       |
+| job\_link     | TEXT     | Absolute job URL (unique)          |
+| location      | TEXT     | Job location                       |
+| salary        | TEXT     | Normalized salary text             |
+| page          | INTEGER  | Pagination page number             |
+| scraped\_at   | DATETIME | Timestamp of scraping              |
+| crawl\_status | TEXT     | `NEW`, `IN_PROGRESS`, `DONE`, etc. |
 
-Located in `spiders/careerjet_crawler.py`, this spider:
+### `job_description` Table
 
-- Starts from the first page and paginates up to page 100.
-- Logs the parsing status for each page.
-- Skips pages without job data.
+| Field            | Type    | Description                     |
+| ---------------- | ------- | ------------------------------- |
+| id               | INTEGER | Auto-increment primary key      |
+| job\_link        | TEXT    | Matches `jobs.job_link`, UNIQUE |
+| job\_description | TEXT    | Full scraped job description    |
+| status           | TEXT    | Status of description crawl defaults to NEW    |
 
-## ⚙️ Configuration Highlights
+---
+
+## 🧼 Data Pipelines
+
+### `CleaningPipeline`
+
+* Validates title presence
+* Normalizes company, location, and salary
+* Converts relative URLs to absolute
+* Injects `scraped_at` timestamp
+
+### `SQLitePipeline`
+
+* Creates and inserts records into `jobs` table
+* Avoids inserting job entries with duplicate `job_link`
+
+### `JobDescriptionPipeline`
+
+* Creates and inserts into `job_description` table
+* Marks processed jobs as `DONE` or `NO_DESCRIPTION_FOUND` or error code in `jobs` table
+
+---
+
+## 🕷 Spider Details
+
+### `careerjet_crawler`
+
+* Scrapes pages 1 to 100
+* Extracts job summary data like title, compary, salary, etc.
+
+### `careerjet_description`
+
+* Loads job links with `crawl_status = 'NEW'` in batches
+* Scrapes full job descriptions from each URL
+* Updates crawl status and supports batch limits for testing
+
+---
+
+## ⚙ Configuration Highlights
 
 Defined in `settings.py`:
 
-- **Throttling & Delay**: `DOWNLOAD_DELAY=1.2`, `AUTOTHROTTLE_ENABLED=True`
-- **Retry**: Retries 3 times for HTTP error codes like 500, 503, 429, etc.
-- **User-Agent Rotation**: Handled by custom middleware
+* **Download delay**: 1.2 seconds, randomized
+* **Auto-throttle**: Enabled
+* **Retry policy**: Enabled for 3 attempts
+* **User-agent rotation**: Enabled via custom middleware
+* **Feed export**: CSV output is disabled in favor of SQLite
+* **HTTP cache**: Enabled for efficient testing
 
-## 📄 Output Example
+---
 
-| title             | company    | job_link                          | location | salary | page | scraped_at         |
-|------------------|------------|-----------------------------------|----------|--------|------|--------------------|
-| Software Engineer| ABC Ltd.   | https://careerjet.com.bd/job12345 | Dhaka    | 50000  | 1    | 2025-06-01 15:30   |
+## 📄 Example Query
+
+To view 10 latest scraped jobs with descriptions:
+
+```sql
+SELECT j.title, j.company, j.location, d.job_description
+FROM jobs j
+JOIN job_description d ON j.job_link = d.job_link
+ORDER BY j.scraped_at DESC
+LIMIT 10;
+```
+
+---
 
 ## 🧪 Testing
 
-To test locally with HTTP caching enabled:
+You can test spiders using:
 
 ```bash
-scrapy crawl careerjet_crawler --nolog
+scrapy crawl careerjet_crawler 
+scrapy crawl careerjet_description 
 ```
 
 ---

@@ -5,6 +5,10 @@
 
 import scrapy
 
+class JobDescriptionItem(scrapy.Item):
+    job_link = scrapy.Field()
+    job_description = scrapy.Field()
+
 
 class CareerjetItem(scrapy.Item):
     title = scrapy.Field()

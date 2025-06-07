@@ -92,3 +92,44 @@ class SQLitePipeline:
             'NEW'
         ))
         return item
+    
+class JobDescriptionPipeline:
+    def open_spider(self, spider):
+        if spider.name != 'careerjet_description':
+            return
+        self.connection = sqlite3.connect("careerjet_jobs.db")
+        self.cursor = self.connection.cursor()
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS job_description (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_link TEXT UNIQUE,
+                job_description TEXT,
+                status TEXT DEFAULT 'NEW'
+            )
+        ''')
+        self.connection.commit()
+
+    def close_spider(self, spider):
+        if spider.name != 'careerjet_description':
+            return
+        self.connection.commit()
+        self.connection.close()
+
+    def process_item(self, item, spider):
+        if spider.name != 'careerjet_description':
+            return item
+        
+        self.cursor.execute('''
+            INSERT OR REPLACE INTO job_description (job_link, job_description, status)
+            VALUES (?, ?, 'NEW')
+        ''', (
+            item.get('job_link'),
+            item.get('job_description'),
+        ))
+        self.cursor.execute('''
+            UPDATE jobs
+            SET crawl_status = 'DONE'
+            WHERE job_link = ?
+        ''', (item.get('job_link'),))
+        self.connection.commit()
+        return item
