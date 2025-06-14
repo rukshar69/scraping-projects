@@ -6,101 +6,152 @@ A scalable and configurable Scrapy-based project to extract job listings and ful
 ## 📦 Project Structure
 
 ```bash
-careerjet/
-├── spiders/
-│   ├── careerjet_crawler.py           # Spider to scrape job listing summaries
-│   └── careerjet_description_crawler.py  # Spider to fetch full job descriptions
-├── items.py                            # Scraped data schema
-├── pipelines.py                        # Cleans and stores items to SQLite
-├── middlewares.py                      # Custom user-agent rotation
-├── settings.py                         # Project settings
-├── requirements.txt                    # Python dependencies
-```
+web-scraper/
+├── careerjet/
+│   ├── spiders/
+│   │   ├── careerjet_crawler.py              # Spider to scrape job listing summaries
+│   │   └── careerjet_description_crawler.py  # Spider to fetch full job descriptions
+│   ├── items.py                               # Scraped data schema
+│   ├── pipelines.py                           # Cleans and stores items to SQLite
+│   ├── middlewares.py                         # User-agent rotation
+│   ├── settings.py                            # Scrapy configuration
+│   └── requirements.txt
+├── job_info_extractor_ai/
+│   ├── get_job_components.py                  # Extracts structured job components using LLM
+│   └── llm_job_description_parser_v2.py       # LangChain + Cohere schema & prompt for extraction
+````
+
 
 ## 🚀 Features
 
-* **Multi-stage scraping**:
+### 🌐 Web Crawling (Scrapy)
 
-  * `careerjet_crawler`: Extracts job title, company, location, salary, and job link from 100 pages.
-  * `careerjet_description`: Loads job links from DB, fetches full descriptions, and updates statuses.
-* **SQLite integration**:
+* `careerjet_crawler`:
 
-  * Persists job listings and descriptions.
-  * Avoids duplicates with unique constraints.
-* **Batch-based crawling**:
+  * Scrapes title, company, location, salary, job URL (up to 100 pages).
+* `careerjet_description`:
 
-  * Processes jobs in batches with `crawl_status` control.
-* **Test mode support**:
+  * Loads job URLs from DB (`crawl_status='NEW'`), scrapes job description, and updates status.
 
-  * Configurable limits for development or test runs.
-* **Data normalization**:
+### 🧠 AI-Powered Enrichment
 
-  * Salary parsing, title and location cleanup, link normalization.
-* **Resilient crawling**:
+* `job_info_extractor_ai` module:
 
-  * Retry, throttling, and user-agent rotation enabled.
+  * Extracts structured job insights using Cohere's LLM via LangChain.
+  * Targets job responsibilities, requirements, company details, benefits, and compensation.
+  * Saves enriched data to a third table: `job_components`.
+
+### 🧱 SQLite Storage
+
+* Schema includes:
+
+  * `jobs` (listing metadata)
+  * `job_description` (raw description)
+  * `job_components` (AI-enriched structured output)
+
+### 🧼 Robust Pipelines
+
+* Input validation, salary normalization, absolute URL conversion
+* Duplicate handling and crawl status tracking
+* Logging, retrying, and rate limiting for LLM usage
 
 ---
 
 ## 🛠️ Installation
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/careerjet-scraper.git
-   cd careerjet-scraper
-   ```
 
-2. Create a virtual environment and install dependencies:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   ```
+```bash
+git clone https://github.com/your-username/careerjet-scraper.git
+cd web-scraper
+```
+
+2. Set up a virtual environment:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
+
+```bash
+pip install -r careerjet/requirements.txt
+```
+
+4. Set up API credentials for LLM:
+
+Create a `.env` file in `job_info_extractor_ai/`:
+
+```
+COHERE_API_KEY=your-api-key-here
+```
+
+---
 
 ## ⚙ Usage
 
-### 1. Scrape Job Listings
+### 1. Crawl Job Listings
 
 ```bash
+cd careerjet
 scrapy crawl careerjet_crawler
 ```
 
-Saves data into `careerjet_jobs.db` under `jobs` table.
-
-### 2. Scrape Full Job Descriptions
+### 2. Crawl Full Job Descriptions
 
 ```bash
 scrapy crawl careerjet_description
 ```
 
-Fetches job descriptions for records where `crawl_status = 'NEW'` in `jobs` table and stores them in `job_description` table.
+### 3. Extract Job Components via AI
+
+```bash
+cd ../job_info_extractor_ai
+python get_job_components.py
+```
 
 ---
 
 ## 🗃 Database Schema
 
-### `jobs` Table
+### `jobs`
 
 | Field         | Type     | Description                        |
 | ------------- | -------- | ---------------------------------- |
 | id            | INTEGER  | Auto-increment primary key         |
 | title         | TEXT     | Job title                          |
 | company       | TEXT     | Company name                       |
-| job\_link     | TEXT     | Absolute job URL (unique)          |
+| job\_link     | TEXT     | Unique job URL                     |
 | location      | TEXT     | Job location                       |
-| salary        | TEXT     | Normalized salary text             |
-| page          | INTEGER  | Pagination page number             |
-| scraped\_at   | DATETIME | Timestamp of scraping              |
+| salary        | TEXT     | Salary normalized                  |
+| page          | INTEGER  | Page number from listing           |
+| scraped\_at   | DATETIME | Timestamp                          |
 | crawl\_status | TEXT     | `NEW`, `IN_PROGRESS`, `DONE`, etc. |
 
-### `job_description` Table
+### `job_description`
 
-| Field            | Type    | Description                     |
-| ---------------- | ------- | ------------------------------- |
-| id               | INTEGER | Auto-increment primary key      |
-| job\_link        | TEXT    | Matches `jobs.job_link`, UNIQUE |
-| job\_description | TEXT    | Full scraped job description    |
-| status           | TEXT    | Status of description crawl defaults to NEW    |
+| Field            | Type    | Description                    |
+| ---------------- | ------- | ------------------------------ |
+| id               | INTEGER | Auto-increment primary key     |
+| job\_link        | TEXT    | Foreign key to `jobs` (unique) |
+| job\_description | TEXT    | Full job description           |
+| status           | TEXT    | `NEW`, `IN_PROGRESS`, `DONE`   |
+
+### `job_components`
+
+| Field                 | Type     | Description                     |
+| --------------------- | -------- | ------------------------------- |
+| id                    | INTEGER  | Auto-increment primary key      |
+| job\_link             | TEXT     | Foreign key to `jobs` (unique)  |
+| job\_responsibilities | TEXT     | Responsibilities section        |
+| job\_requirements     | TEXT     | Requirements section            |
+| company\_name         | TEXT     | Name extracted from description |
+| company\_address      | TEXT     | Address/location if available   |
+| application\_email    | TEXT     | Email to apply                  |
+| benefits              | TEXT     | Benefits offered                |
+| compensation          | TEXT     | Compensation/salary info        |
+| extracted\_at         | DATETIME | Timestamp of AI extraction      |
 
 ---
 
@@ -169,11 +220,15 @@ LIMIT 10;
 
 ## 🧪 Testing
 
-You can test spiders using:
+To test all stages:
 
 ```bash
-scrapy crawl careerjet_crawler 
-scrapy crawl careerjet_description 
+# Scrapy spiders (no log)
+scrapy crawl careerjet_crawler --nolog
+scrapy crawl careerjet_description --nolog
+
+# Job enrichment
+python get_job_components.py
 ```
 
 ---

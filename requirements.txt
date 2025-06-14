@@ -1,1 +1,7 @@
 scrapy
+cohere
+langchain
+langchain-cohere
+python-dotenv
+pyrate-limiter
+tenacity
