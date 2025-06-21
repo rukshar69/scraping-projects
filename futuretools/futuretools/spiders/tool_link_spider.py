@@ -1,9 +1,9 @@
 import scrapy
 from datetime import datetime
-from futuretools.items import ToolItem
+from futuretools.items import ToolLinkItem
 
 class ToolsSpider(scrapy.Spider):
-    name = "tools"
+    name = "tool_link_spider"
     allowed_domains = ["futuretools.io"]
     start_urls = [f"https://www.futuretools.io/?b34cbd71_page={i}" for i in range(3, 36)]
 
@@ -16,7 +16,7 @@ class ToolsSpider(scrapy.Spider):
             href = card.xpath('.//a/@href').get()
             if href:
                 full_url = response.urljoin(href)
-                item = ToolItem()
+                item = ToolLinkItem()
                 item['url'] = full_url
                 item['status'] = 'NEW'
                 item['created_at'] = datetime.now().isoformat()

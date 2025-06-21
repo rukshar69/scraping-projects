@@ -5,9 +5,9 @@ NEWSPIDER_MODULE = "futuretools.spiders"
 ROBOTSTXT_OBEY = False
 
 AUTOTHROTTLE_ENABLED = True
-AUTOTHROTTLE_START_DELAY = 1
-AUTOTHROTTLE_TARGET_CONCURRENCY = 3
-AUTOTHROTTLE_MAX_DELAY = 10
+AUTOTHROTTLE_START_DELAY = 2
+AUTOTHROTTLE_TARGET_CONCURRENCY = 5
+AUTOTHROTTLE_MAX_DELAY = 50
 
 USER_AGENT_LIST = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0",
@@ -18,10 +18,16 @@ USER_AGENT_LIST = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
 ]
 
+RETRY_ENABLED = True
+RETRY_TIMES = 5
+RETRY_HTTP_CODES = [500, 502, 503, 504, 522, 524, 408, 429]
+
 DOWNLOADER_MIDDLEWARES = {
+    'futuretools.middlewares.TooManyRequestsRetryMiddleware': 550,
+    'scrapy.downloadermiddlewares.retry.RetryMiddleware': None,
     'futuretools.middlewares.RotateUserAgentMiddleware': 400,
-    'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
 }
+
 ITEM_PIPELINES = {
-    "futuretools.pipelines.SQLitePipeline": 300,
+    "futuretools.pipelines.ToolLinkPipeline": 300,
 }
